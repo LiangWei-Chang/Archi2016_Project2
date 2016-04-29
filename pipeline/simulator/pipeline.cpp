@@ -92,6 +92,7 @@ int main(){
 	//Start Instructions
 	while(!Halt){
 		for(int i=0; i<4; i++) error_type[i] = false;
+		
 		for(int i=0; i<4; i++){
 			if(error_type[i]==true)
 				Errorout << "In cycle " << Cycle << Error_Message[i] << endl;

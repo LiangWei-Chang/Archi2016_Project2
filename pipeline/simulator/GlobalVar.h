@@ -15,18 +15,15 @@ using namespace std;
 
 class Instruction{
 public:
-	int Word, opcode, rs, rt, rd, shamt, funct, C;
+	int Word, opcode, rs, rt, rd, shamt, funct;
+	short C;
 	Instruction(){
-		opcode = rs = rt = rd = shamt = funct = C = 0;
+		Word = opcode = rs = rt = rd = shamt = funct = 0;
+		C = 0;
 	}
 };
 
 class Buffer{
-public:
-	int rs, rt, rd;
-};
-
-class Stage{
 public:
 	Instruction ins;
 };
@@ -36,6 +33,5 @@ static int reg[32], PC;
 static bool Halt;
 static bool error_type[4];
 static Buffer IF_ID, ID_EX, EX_MEM, MEM_WB;
-static Stage IF, ID, EX, MEM, WB;
 
 #endif
