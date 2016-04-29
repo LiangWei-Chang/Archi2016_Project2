@@ -134,7 +134,7 @@ int Execute(){
 			break;
 		case 7: // bgtz
 			ALU_result = (reg[ins.rs] > 0);
-			break;*/
+			break;
 		case 2: // j
 			C = (unsigned)(Word << 6) >> 6;
 			J_format("j", C);
@@ -142,17 +142,61 @@ int Execute(){
 		case 3: // jal
 			C = (unsigned)(Word << 6) >> 6;
 			J_format("jal", C);
-			break;
+			break;*/
 		case 63: // Halt
 			Halt = true;
 			break;
 	}
+	EX_MEM.ALU_result = ALU_result;
+	EX_MEM.ins = ins;
+	return ins.Word;
 }
 
 int Memory_Access(){
 	Instruction ins = EX_MEM.ins;
+	int Data = 0;
+	switch(ins.opcode){
+		case 35: // lw
+			for(int i=0; i<4; i++)
+				Data = (Data << 8) | (unsigned char)Memory[EX_MEM.ALU_result + i];
+			break;
+		case 33: // lh
+			Data = Memory[EX_MEM.ALU_result];
+			for(int i=1; i<2; i++)
+				Data = (Data << 8) | (unsigned char)Memory[EX_MEM.ALU_result + i];
+			break;
+		case 37: // lhu
+			for(int i=0; i<2; i++)
+				Data = (Data << 8) | (unsigned char)Memory[EX_MEM.ALU_result + i];
+			break;
+		case 32: // lb
+			Data = Memory[EX_MEM.ALU_result];
+			break;
+		case 36: // lbu
+			Data = (unsigned char)Memory[EX_MEM.ALU_result];
+			break;
+		case 43: // sw
+			for(int i=0; i<4; i++)
+				Memory[EX_MEM.ALU_result + i] = (char)(reg[ins.rt] >> (8*(3-i)));
+			break;
+		case 41: // sh
+			for(int i=0; i<4; i++)
+				Memory[EX_MEM.ALU_result + i] = (char)(reg[ins.rt] >> (8*(1-i)));
+			break;
+		case 40: // sb
+			Memory[EX_MEM.ALU_result] = (char)reg[ins.rt];
+			break;
+		default: // Store Load else
+			Data = EX_MEM.ALU_result;
+			break;
+	}
+	MEM_WB.Data = Data;
+	MEM_WB.ins = ins;
+	return ins.Word;
 }
 
 int Write_Back(){
 	Instruction ins = MEM_WB.ins;
+	
+	return ins.Word;
 }

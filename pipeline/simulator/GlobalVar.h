@@ -26,6 +26,7 @@ public:
 class Buffer{
 public:
 	Instruction ins;
+	int ALU_result, Data;
 };
 
 static map< int,char > Memory;
