@@ -8,7 +8,7 @@
 #ifndef Stage_h
 #define Stage_h
 
-Instruction Instruction_Fetch(int);
+Instruction Instruction_Fetch();
 Instruction Instruction_Decode();
 Instruction Execute();
 Instruction Memory_Access();
