@@ -12,10 +12,13 @@
 #include <vector>
 #include <string>
 #include "GlobalVar.h"
+#include "Stage.h"
 
 using namespace std;
 
 string Error_Message[4] = {": Write $0 Error", ": Address Overflow", ": Misalignment Error", ": Number Overflow"};
+string fiveStage[5] = {"IF: ", "ID: ", "EX: ", "DM: ", "WB: "};
+Instruction fiveStageIns[5];
 
 void InitialReg(){
 	for(int i=0; i<32; i++)
@@ -28,7 +31,18 @@ void cyclePrint(ofstream &fout, int &Cycle){
 		fout << "$" << setw(2) << setfill('0') << dec << i;
 		fout << ": 0x" << setw(8) << setfill('0') << hex << uppercase << reg[i] << endl;
 	}
-	fout << "PC: 0x" << setw(8) << setfill('0') << hex << uppercase << PC << endl << endl << endl;
+	fout << "PC: 0x" << setw(8) << setfill('0') << hex << uppercase << PC << endl;
+	for(int i=0; i<5; i++){
+		int op = ((unsigned int)fiveStageIns[i].Word) >> 26;
+		int fu = ((unsigned int) (fiveStageIns[i].Word << 26)) >> 26;
+		bool check = (op==0 && fu==0);
+		fout << fiveStage[i];
+		if(check && (fiveStageIns[i].rt == 0) && (fiveStageIns[i].rd == 0) && (fiveStageIns[i].shamt == 0)) 
+			fout << "NOP" << endl;
+		else
+			fout << "0x" << setw(8) << setfill('0') << hex << uppercase << fiveStageIns[i].ins << endl;
+	}
+	fout << endl << endl;
 }
 
 int main(){
@@ -91,8 +105,13 @@ int main(){
 
 	//Start Instructions
 	while(!Halt){
-		for(int i=0; i<4; i++) error_type[i] = false;
-		
+		Branch_taken = false;
+		for(int i=0; i<4; i++) error_type[i] = false;		
+		fiveStageIns[4] = Write_Back();
+		fiveStageIns[3] = Memory_Access();
+		fiveStageIns[2] = Execute();
+		fiveStageIns[1] = Instruction_Decode();
+		fiveStageIns[0] = Instruction_Fetch(Address[PC]);
 		for(int i=0; i<4; i++){
 			if(error_type[i]==true)
 				Errorout << "In cycle " << Cycle << Error_Message[i] << endl;

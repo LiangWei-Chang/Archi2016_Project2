@@ -8,10 +8,10 @@
 #ifndef Stage_h
 #define Stage_h
 
-int Instruction_Fetch(int);
-int Instruction_Decode();
-int Execute();
-int Memory_Access();
-int Write_Back();
+Instruction Instruction_Fetch(int);
+Instruction Instruction_Decode();
+Instruction Execute();
+Instruction Memory_Access();
+Instruction Write_Back();
 
 #endif

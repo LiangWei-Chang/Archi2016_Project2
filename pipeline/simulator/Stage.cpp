@@ -7,14 +7,21 @@
 ***************************************************/
 #include "GlobalVar.h"
 
-int Instruction_Fetch(int Word){
+Instruction Instruction_Fetch(int Word){
 	Instruction ins;
 	ins.Word = Word;
-	IF_ID.ins = ins;
-	return Word;
+	if(Branch_taken){
+		PC = Branch_PC;
+		IF_ID.ins = new Instruction();
+	}
+	else{
+		PC += 4;
+		IF_ID.ins = ins;
+	}
+	return ins;
 }
 
-int Instruction_Decode(){
+Instruction Instruction_Decode(){
 	Instruction ins = IF_ID.ins;
 	// Calculate opcode
 	ins.opcode = ((unsigned int) ins.Word) >> 26;
@@ -30,15 +37,51 @@ int Instruction_Decode(){
 	ins.funct = ((unsigned int) (ins.Word << 26)) >> 26;
 	// Calculate C
 	ins.C = (short) ins.Word;
+	switch(ins.opcode){
+		case 4: // beq
+			Branch_taken = (reg[ins.rs] == reg[ins.rt]);
+			Branch_PC = PC + 4 + 4 * (int)ins.C;
+			break;
+		case 5: // bne
+			Branch_taken = (reg[ins.rs] != reg[ins.rt]);
+			Branch_PC = PC + 4 + 4 * (int)ins.C;
+			break;
+		case 7: // bgtz
+			Branch_taken = (reg[ins.rs] > 0);
+			Branch_PC = PC + 4 + 4 * (int)ins.C;
+			break;
+		case 2: // j
+			ins.C = (unsigned)(ins.Word << 6) >> 6;
+			int K = ((PC+4) >> 28) << 28;
+			K += (C << 2);
+			Branch_taken = true;
+			Branch_PC = K;
+			break;
+		case 3: // jal
+			reg[31] = PC + 4;
+			ins.C = (unsigned)(ins.Word << 6) >> 6;
+			int K = ((PC+4) >> 28) << 28;
+			K += (C << 2);
+			Branch_taken = true;
+			Branch_PC = K;
+			break;
+		case 0:
+			if(funct==8){ // jr
+				Branch_taken = true;
+				Branch_PC = reg[ins.rs];
+			}
+			break;
+	}
 	ID_EX.ins = ins;
-	return ins.Word;
+	return ins;
 }
 
-int Execute(){
+Instruction Execute(){
 	Instruction ins = ID_EX.ins;
 	int ALU_result;
 	switch (ins.opcode){
 		case 0:
+			ins.type = 'R';
 			switch (ins.funct){
 				case 32: // add
 					ALU_result = reg[ins.rs] + reg[ins.rt];
@@ -76,83 +119,78 @@ int Execute(){
 				case 3: // sra
 					ALU_result = reg[ins.rt] >> ins.shamt;
 					break;
-				case 8: // jr
-					ALU_result = reg[ins.rs];
-					break;
 			}
 			break;
 		case 8: // addi
+			ins.type = 'I';
 			ALU_result = reg[ins.rs] + (int) ins.C;
 			break;
 		case 9: // addiu
+			ins.type = 'I';
 			ALU_result = reg[ins.rs] + (int) ins.C;
 			break;
 		case 35: // lw
+			ins.type = 'I';
 			ALU_result = reg[ins.rs] + (int) ins.C;
 			break;
 		case 33: // lh
+			ins.type = 'I';
 			ALU_result = reg[ins.rs] + (int) ins.C;
 			break;
 		case 37: // lhu
+			ins.type = 'I';
 			ALU_result = reg[ins.rs] + (int) ins.C;
 			break;
 		case 32: // lb
+			ins.type = 'I';
 			ALU_result = reg[ins.rs] + (int) ins.C;
 			break;
 		case 36: // lbu
+			ins.type = 'I';
 			ALU_result = reg[ins.rs] + (int) ins.C;
 			break;
 		case 43: // sw
+			ins.type = 'I';
 			ALU_result = reg[ins.rs] + (int) ins.C;
 			break;
 		case 41: // sh
+			ins.type = 'I';
 			ALU_result = reg[ins.rs] + (int) ins.C;
 			break;
 		case 40: // sb
+			ins.type = 'I';
 			ALU_result = reg[ins.rs] + (int) ins.C;
 			break;
 		case 15: // lui
+			ins.type = 'I';
 			ALU_result = (int) ins.C << 16;
 			break;
 		case 12: // andi
+			ins.type = 'I';
 			ALU_result = reg[ins.rs] & (unsigned int) ins.C;
 			break;
 		case 13: // ori
+			ins.type = 'I';
 			ALU_result = reg[ins.rs] | (unsigned int) ins.C;
 			break;
 		case 14: // nori
+			ins.type = 'I';
 			ALU_result = ~(reg[ins.rs] | (unsigned int) ins.C);
 			break;
 		case 10: // slti
+			ins.type = 'I';
 			ALU_result = (reg[ins.rs] < ins.C);
 			break;
-		/*case 4: // beq
-			ALU_result = (reg[ins.rs] == reg[ins.rt]);
-			break;
-		case 5: // bne
-			ALU_result = (reg[ins.rs] != reg[ins.rt]);
-			break;
-		case 7: // bgtz
-			ALU_result = (reg[ins.rs] > 0);
-			break;
-		case 2: // j
-			C = (unsigned)(Word << 6) >> 6;
-			J_format("j", C);
-			break;
-		case 3: // jal
-			C = (unsigned)(Word << 6) >> 6;
-			J_format("jal", C);
-			break;*/
 		case 63: // Halt
 			Halt = true;
 			break;
 	}
 	EX_MEM.ALU_result = ALU_result;
 	EX_MEM.ins = ins;
-	return ins.Word;
+	return ins;
 }
 
-int Memory_Access(){
+Instruction Memory_Access(){
 	Instruction ins = EX_MEM.ins;
 	int Data = 0;
 	switch(ins.opcode){
@@ -191,12 +229,16 @@ int Memory_Access(){
 			break;
 	}
 	MEM_WB.Data = Data;
+	MEM_WB.ALU_result = EX_MEM.ALU_result;
 	MEM_WB.ins = ins;
-	return ins.Word;
+	return ins;
 }
 
-int Write_Back(){
+Instruction Write_Back(){
 	Instruction ins = MEM_WB.ins;
-	
-	return ins.Word;
+	if(ins.type=='R')
+		reg[ins.rd] = MEM_WB.ALU_result;
+	else if(ins.type=='I')
+		reg[ins.rt] = MEM_WB.Data;
+	return ins;
 }
