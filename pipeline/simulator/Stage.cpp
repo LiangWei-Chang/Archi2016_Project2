@@ -9,15 +9,13 @@
 #include "Stage.h"
 #include <iostream>
 
-Instruction Instruction_Fetch(){
-	Instruction ins;
-	ins.Word = Global::Address[Global::PC];
-	Global::IF_ID.ins = ins;
-	return ins;
+bool isBranch(Instruction ins){
+	return ((ins.Name=="BEQ") || (ins.Name=="BNE") || (ins.Name=="BGTZ") || (ins.Name=="J") || (ins.Name=="JAL") || (ins.Name=="JR"));
 }
 
-Instruction Instruction_Decode(){
-	Instruction ins = Global::IF_ID.ins;
+Instruction Decode(int Word){
+	Instruction ins;
+	ins.Word = Word;
 	// Calculate opcode
 	ins.opcode = ((unsigned int) ins.Word) >> 26;
 	// Calculate rs
@@ -32,30 +30,6 @@ Instruction Instruction_Decode(){
 	ins.funct = ((unsigned int) (ins.Word << 26)) >> 26;
 	// Calculate C
 	ins.C = (short) ins.Word;
-	int K = 0, DataRs, DataRt;
-
-	// Stall
-	if(Global::ID_EX.MemRead && ((Global::ID_EX.WriteDes == ins.rs) || (Global::ID_EX.WriteDes == ins.rt))){
-		Global::Stall = true;
-		Instruction NOP;
-		Global::ID_EX.ins = NOP;
-		return ins;
-	}
-	else
-		Global::Stall = false;
-
-	// Forwarding
-	if(Global::EX_MEM.RegWrite && (Global::EX_MEM.WriteDes!=0) && (Global::EX_MEM.WriteDes == ins.rs))
-		DataRs = Global::EX_MEM.ALU_result;
-	else
-		DataRs = Global::reg[ins.rs];
-	if(Global::EX_MEM.RegWrite && (Global::EX_MEM.WriteDes!=0) && (Global::EX_MEM.WriteDes == ins.rt))
-		DataRt = Global::EX_MEM.ALU_result;
-	else
-		DataRt = Global::reg[ins.rt];
-
-	Global::ID_EX.RegWrite = false;
-	Global::ID_EX.MemRead = false;
 
 	switch(ins.opcode){
 		case 0:
@@ -63,67 +37,41 @@ Instruction Instruction_Decode(){
 			switch (ins.funct){
 				case 32: // add
 					ins.Name = "ADD";
-					Global::ID_EX.RegWrite = true;
-					Global::ID_EX.WriteDes = ins.rd;
 					break;
 				case 33: // addu
 					ins.Name = "ADDU";
-					Global::ID_EX.RegWrite = true;
-					Global::ID_EX.WriteDes = ins.rd;
 					break;
 				case 34: // sub
 					ins.Name = "SUB";
-					Global::ID_EX.RegWrite = true;
-					Global::ID_EX.WriteDes = ins.rd;
 					break;
 				case 36: // and
 					ins.Name = "AND";
-					Global::ID_EX.RegWrite = true;
-					Global::ID_EX.WriteDes = ins.rd;
 					break;
 				case 37: // or
 					ins.Name = "OR";
-					Global::ID_EX.RegWrite = true;
-					Global::ID_EX.WriteDes = ins.rd;
 					break;
 				case 38: // xor
 					ins.Name = "XOR";
-					Global::ID_EX.RegWrite = true;
-					Global::ID_EX.WriteDes = ins.rd;
 					break;
 				case 39: // nor
 					ins.Name = "NOR";
-					Global::ID_EX.RegWrite = true;
-					Global::ID_EX.WriteDes = ins.rd;
 					break;
 				case 40: // nand
 					ins.Name = "NAND";
-					Global::ID_EX.RegWrite = true;
-					Global::ID_EX.WriteDes = ins.rd;
 					break;
 				case 42: // slt
 					ins.Name = "SLT";
-					Global::ID_EX.RegWrite = true;
-					Global::ID_EX.WriteDes = ins.rd;
 					break;
 				case 0: // sll
 					ins.Name = "SLL";
-					Global::ID_EX.RegWrite = true;
-					Global::ID_EX.WriteDes = ins.rd;
 					break;
 				case 2: // srl
 					ins.Name = "SRL";
-					Global::ID_EX.RegWrite = true;
-					Global::ID_EX.WriteDes = ins.rd;
 					break;
 				case 3: // sra
 					ins.Name = "SRA";
-					Global::ID_EX.RegWrite = true;
-					Global::ID_EX.WriteDes = ins.rd;
 					break;
 				case 8: // jr
-					Global::Branch_taken = true;
-					Global::Branch_PC = Global::reg[ins.rs];
 					ins.Name = "JR";
 					break;
 			}
@@ -131,49 +79,30 @@ Instruction Instruction_Decode(){
 		case 8: // addi
 			ins.type = 'I';
 			ins.Name = "ADDI";
-			Global::ID_EX.RegWrite = true;
-			Global::ID_EX.WriteDes = ins.rt;
 			break;
 		case 9: // addiu
 			ins.type = 'I';
 			ins.Name = "ADDIU";
-			Global::ID_EX.RegWrite = true;
-			Global::ID_EX.WriteDes = ins.rt;
 			break;
 		case 35: // lw
 			ins.type = 'I';
 			ins.Name = "LW";
-			Global::ID_EX.RegWrite = true;
-			Global::ID_EX.MemRead = true;
-			Global::ID_EX.WriteDes = ins.rt;
 			break;
 		case 33: // lh
 			ins.type = 'I';
 			ins.Name = "LH";
-			Global::ID_EX.RegWrite = true;
-			Global::ID_EX.MemRead = true;
-			Global::ID_EX.WriteDes = ins.rt;
 			break;
 		case 37: // lhu
 			ins.type = 'I';
 			ins.Name = "LHU";
-			Global::ID_EX.RegWrite = true;
-			Global::ID_EX.MemRead = true;
-			Global::ID_EX.WriteDes = ins.rt;
 			break;
 		case 32: // lb
 			ins.type = 'I';
 			ins.Name = "LB";
-			Global::ID_EX.RegWrite = true;
-			Global::ID_EX.MemRead = true;
-			Global::ID_EX.WriteDes = ins.rt;
 			break;
 		case 36: // lbu
 			ins.type = 'I';
 			ins.Name = "LBU";
-			Global::ID_EX.RegWrite = true;
-			Global::ID_EX.MemRead = true;
-			Global::ID_EX.WriteDes = ins.rt;
 			break;
 		case 43: // sw
 			ins.type = 'I';
@@ -190,30 +119,181 @@ Instruction Instruction_Decode(){
 		case 15: // lui
 			ins.type = 'I';
 			ins.Name = "LUI";
-			Global::ID_EX.RegWrite = true;
-			Global::ID_EX.WriteDes = ins.rt;
 			break;
 		case 12: // andi
 			ins.type = 'I';
 			ins.Name = "ANDI";
-			Global::ID_EX.RegWrite = true;
-			Global::ID_EX.WriteDes = ins.rt;
 			break;
 		case 13: // ori
 			ins.type = 'I';
 			ins.Name = "ORI";
-			Global::ID_EX.RegWrite = true;
-			Global::ID_EX.WriteDes = ins.rt;
 			break;
 		case 14: // nori
 			ins.type = 'I';
 			ins.Name = "NORI";
-			Global::ID_EX.RegWrite = true;
-			Global::ID_EX.WriteDes = ins.rt;
 			break;
 		case 10: // slti
 			ins.type = 'I';
 			ins.Name = "SLTI";
+			break;
+		case 63: // Halt
+			ins.Name = "HALT";
+			break;
+		case 4: // beq
+			ins.Name = "BEQ";
+			break;
+		case 5: // bne
+			ins.Name = "BNE";
+			break;
+		case 7: // bgtz
+			ins.Name = "BGTZ";
+			break;
+		case 2: // j
+			ins.Name = "J";
+			break;
+		case 3: // jal
+			ins.Name = "JAL";
+			break;
+	}
+	return ins;
+}
+
+void Instruction_Fetch(){
+	Instruction ins;
+	ins.Word = Global::Address[Global::PC];
+	ins = Decode(ins.Word);
+	if(!Global::Stall) Global::IF_ID.ins = ins;
+}
+
+void Instruction_Decode(){
+	Instruction ins = Global::IF_ID.ins;
+	int K = 0, DataRs, DataRt;
+
+	if(Global::Stall){
+		Instruction NOP;
+		Global::ID_EX.ins = NOP;
+		return;
+	}
+
+	// Forwarding
+	if(ins.fwdrs)
+		DataRs = Global::MEM_WB.ALU_result;
+	else
+		DataRs = Global::reg[ins.rs];
+	if(ins.fwdrt)
+		DataRt = Global::MEM_WB.ALU_result;
+	else
+		DataRt = Global::reg[ins.rt];
+
+	Global::ID_EX.RegWrite = false;
+	Global::ID_EX.MemRead = false;
+
+	switch(ins.opcode){
+		case 0:
+			switch (ins.funct){
+				case 32: // add
+					Global::ID_EX.RegWrite = true;
+					Global::ID_EX.WriteDes = ins.rd;
+					break;
+				case 33: // addu
+					Global::ID_EX.RegWrite = true;
+					Global::ID_EX.WriteDes = ins.rd;
+					break;
+				case 34: // sub
+					Global::ID_EX.RegWrite = true;
+					Global::ID_EX.WriteDes = ins.rd;
+					break;
+				case 36: // and
+					Global::ID_EX.RegWrite = true;
+					Global::ID_EX.WriteDes = ins.rd;
+					break;
+				case 37: // or
+					Global::ID_EX.RegWrite = true;
+					Global::ID_EX.WriteDes = ins.rd;
+					break;
+				case 38: // xor
+					Global::ID_EX.RegWrite = true;
+					Global::ID_EX.WriteDes = ins.rd;
+					break;
+				case 39: // nor
+					Global::ID_EX.RegWrite = true;
+					Global::ID_EX.WriteDes = ins.rd;
+					break;
+				case 40: // nand
+					Global::ID_EX.RegWrite = true;
+					Global::ID_EX.WriteDes = ins.rd;
+					break;
+				case 42: // slt
+					Global::ID_EX.RegWrite = true;
+					Global::ID_EX.WriteDes = ins.rd;
+					break;
+				case 0: // sll
+					Global::ID_EX.RegWrite = true;
+					Global::ID_EX.WriteDes = ins.rd;
+					break;
+				case 2: // srl
+					Global::ID_EX.RegWrite = true;
+					Global::ID_EX.WriteDes = ins.rd;
+					break;
+				case 3: // sra
+					Global::ID_EX.RegWrite = true;
+					Global::ID_EX.WriteDes = ins.rd;
+					break;
+				case 8: // jr
+					Global::Branch_taken = true;
+					Global::Branch_PC = Global::reg[ins.rs];
+					break;
+			}
+			break;
+		case 8: // addi
+			Global::ID_EX.RegWrite = true;
+			Global::ID_EX.WriteDes = ins.rt;
+			break;
+		case 9: // addiu
+			Global::ID_EX.RegWrite = true;
+			Global::ID_EX.WriteDes = ins.rt;
+			break;
+		case 35: // lw
+			Global::ID_EX.RegWrite = true;
+			Global::ID_EX.MemRead = true;
+			Global::ID_EX.WriteDes = ins.rt;
+			break;
+		case 33: // lh
+			Global::ID_EX.RegWrite = true;
+			Global::ID_EX.MemRead = true;
+			Global::ID_EX.WriteDes = ins.rt;
+			break;
+			Global::ID_EX.RegWrite = true;
+			Global::ID_EX.MemRead = true;
+			Global::ID_EX.WriteDes = ins.rt;
+			break;
+		case 32: // lb
+			Global::ID_EX.RegWrite = true;
+			Global::ID_EX.MemRead = true;
+			Global::ID_EX.WriteDes = ins.rt;
+			break;
+		case 36: // lbu
+			Global::ID_EX.RegWrite = true;
+			Global::ID_EX.MemRead = true;
+			Global::ID_EX.WriteDes = ins.rt;
+			break;
+		case 15: // lui
+			Global::ID_EX.RegWrite = true;
+			Global::ID_EX.WriteDes = ins.rt;
+			break;
+		case 12: // andi
+			Global::ID_EX.RegWrite = true;
+			Global::ID_EX.WriteDes = ins.rt;
+			break;
+		case 13: // ori
+			Global::ID_EX.RegWrite = true;
+			Global::ID_EX.WriteDes = ins.rt;
+			break;
+		case 14: // nori
+			Global::ID_EX.RegWrite = true;
+			Global::ID_EX.WriteDes = ins.rt;
+			break;
+		case 10: // slti
 			Global::ID_EX.RegWrite = true;
 			Global::ID_EX.WriteDes = ins.rt;
 			break;
@@ -223,17 +303,14 @@ Instruction Instruction_Decode(){
 		case 4: // beq
 			Global::Branch_taken = (DataRs == DataRt);
 			Global::Branch_PC = Global::PC + 4 + 4 * (int)ins.C;
-			ins.Name = "BEQ";
 			break;
 		case 5: // bne
 			Global::Branch_taken = (DataRs != DataRt);
 			Global::Branch_PC = Global::PC + 4 + 4 * (int)ins.C;
-			ins.Name = "BNE";
 			break;
 		case 7: // bgtz
 			Global::Branch_taken = (DataRs > 0);
 			Global::Branch_PC = Global::PC + 4 + 4 * (int)ins.C;
-			ins.Name = "BGTZ";
 			break;
 		case 2: // j
 			ins.C = (unsigned)(ins.Word << 6) >> 6;
@@ -241,7 +318,6 @@ Instruction Instruction_Decode(){
 			K += (ins.C << 2);
 			Global::Branch_taken = true;
 			Global::Branch_PC = K;
-			ins.Name = "J";
 			break;
 		case 3: // jal
 			Global::reg[31] = Global::PC + 4;
@@ -250,28 +326,33 @@ Instruction Instruction_Decode(){
 			K += (ins.C << 2);
 			Global::Branch_taken = true;
 			Global::Branch_PC = K;
-			ins.Name = "JAL";
 			break;
 	}
-	Global::ID_EX.ins = ins;
+	if(!Global::Stall) Global::ID_EX.ins = ins;
 	Global::ID_EX.RegRs = DataRs;
 	Global::ID_EX.RegRt = DataRt;
-	return ins;
 }
 
-Instruction Execute(){
+void Execute(){
 	Instruction ins = Global::ID_EX.ins;
 	int ALU_result = 0, DataRs = 0, DataRt = 0;
-	// Forwarding
-	if(Global::EX_MEM.RegWrite && (Global::EX_MEM.WriteDes!=0) && (Global::EX_MEM.WriteDes == ins.rs))
-		DataRs = Global::EX_MEM.ALU_result;
-	else
-		DataRs = Global::ID_EX.RegRs;
-	if(Global::EX_MEM.RegWrite && (Global::EX_MEM.WriteDes!=0) && (Global::EX_MEM.WriteDes == ins.rt))
-		DataRt = Global::EX_MEM.ALU_result;
-	else
-		DataRt = Global::ID_EX.RegRs;
 
+	// Forwarding
+	if(!isBranch(ins)){
+		if(ins.fwdrs)
+			DataRs = Global::MEM_WB.ALU_result;
+		else
+			DataRs = Global::ID_EX.RegRs;
+		if(ins.fwdrt)
+			DataRt = Global::MEM_WB.ALU_result;
+		else
+			DataRt = Global::ID_EX.RegRs;
+	}
+	else{
+		ins.fwdrs = false;
+		ins.fwdrt = false;
+	}
+	
 	switch (ins.opcode){
 		case 0:
 			switch (ins.funct){
@@ -362,16 +443,15 @@ Instruction Execute(){
 			Global::Halt = true;
 			break;
 	}
-	Global::EX_MEM.MemRead = Global::ID_EX.MemRead;
 	Global::EX_MEM.ALU_result = ALU_result;
 	Global::EX_MEM.ins = ins;
 	Global::EX_MEM.RegRt = DataRt;
 	Global::EX_MEM.RegWrite = Global::ID_EX.RegWrite;
+	Global::EX_MEM.MemRead = Global::ID_EX.MemRead;
 	Global::EX_MEM.WriteDes = Global::ID_EX.WriteDes;
-	return ins;
 }
 
-Instruction Memory_Access(){
+void Memory_Access(){
 	Instruction ins = Global::EX_MEM.ins;
 	int Data = 0;
 	switch(ins.opcode){
@@ -413,15 +493,15 @@ Instruction Memory_Access(){
 	Global::MEM_WB.ALU_result = Global::EX_MEM.ALU_result;
 	Global::MEM_WB.ins = ins;
 	Global::MEM_WB.RegRt = Global::EX_MEM.RegRt;
+	Global::MEM_WB.RegWrite = Global::EX_MEM.RegWrite;
+	Global::MEM_WB.MemRead = Global::EX_MEM.MemRead;
 	Global::MEM_WB.WriteDes = Global::EX_MEM.WriteDes;
-	return ins;
 }
 
-Instruction Write_Back(){
+void Write_Back(){
 	Instruction ins = Global::MEM_WB.ins;
 	if(ins.type=='R')
-		Global::reg[Global::EX_MEM.WriteDes] = Global::MEM_WB.ALU_result;
+		Global::reg[Global::MEM_WB.WriteDes] = Global::MEM_WB.ALU_result;
 	else if(ins.type=='I')
-		Global::reg[Global::EX_MEM.WriteDes] = Global::MEM_WB.Data;
-	return ins;
+		Global::reg[Global::MEM_WB.WriteDes] = Global::MEM_WB.Data;
 }

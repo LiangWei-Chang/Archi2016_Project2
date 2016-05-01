@@ -8,10 +8,10 @@
 #ifndef Stage_h
 #define Stage_h
 
-Instruction Instruction_Fetch();
-Instruction Instruction_Decode();
-Instruction Execute();
-Instruction Memory_Access();
-Instruction Write_Back();
+void Instruction_Fetch();
+void Instruction_Decode();
+void Execute();
+void Memory_Access();
+void Write_Back();
 
 #endif

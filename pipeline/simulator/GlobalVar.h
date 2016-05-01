@@ -19,11 +19,13 @@ public:
 	int Word, opcode, rs, rt, rd, shamt, funct;
 	short C;
 	char type;
+	bool fwdrs, fwdrt;
 	string Name;
 	Instruction(){
 		Word = opcode = rs = rt = rd = shamt = funct = 0;
 		C = 0;
 		type = '\0';
+		fwdrs = fwdrt = false;
 		Name = "NOP";
 	}
 };
