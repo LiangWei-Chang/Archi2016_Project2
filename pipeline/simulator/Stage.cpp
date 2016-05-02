@@ -5,9 +5,28 @@
 	Author: PinYo
 
 ***************************************************/
+#include <iostream>
+#include <bitset>
 #include "GlobalVar.h"
 #include "Stage.h"
-#include <iostream>
+
+using namespace std;
+
+void NumberOverflowDetect(int temp, int A, int B){
+	bitset<32> bs1 = temp, bs2 = A, bs3 = B;
+	if(bs2[31]==bs3[31] && bs2[31]!=bs1[31])
+		Global::error_type[3] = true;
+}
+
+void AddressOverflowDetect(int K, int bytes){
+	if(K < 0 || K >= 1024 || K+bytes >= 1024 || K+bytes < 0)
+		Global::error_type[1] = true;
+}
+
+void DataMisaligned(int K, int bytes){
+	if(K % bytes != 0)
+		Global::error_type[2] = true;
+}
 
 bool isBranch(Instruction ins){
 	return ((ins.Name=="BEQ") || (ins.Name=="BNE") || (ins.Name=="BGTZ") || (ins.Name=="J") || (ins.Name=="JAL") || (ins.Name=="JR"));
@@ -172,8 +191,7 @@ void Instruction_Decode(){
 	if(Global::Stall){
 		Instruction NOP;
 		Global::ID_EX.ins = NOP;
-		Global::ID_EX.MemRead = false;
-		Global::ID_EX.RegWrite = false;
+		Global::ID_EX.Clear();
 		return;
 	}
 
@@ -304,15 +322,21 @@ void Instruction_Decode(){
 			break;
 		case 4: // beq
 			Global::Branch_taken = (DataRs == DataRt);
-			Global::Branch_PC = Global::PC + 4 + 4 * (int)ins.C;
+			NumberOverflowDetect(Global::PC+4, Global::PC, 4);
+			NumberOverflowDetect(Global::PC+4+4*(int)ins.C, Global::PC+4 , 4*(int)ins.C);
+			Global::Branch_PC = Global::PC + 4 * (int)ins.C;
 			break;
 		case 5: // bne
 			Global::Branch_taken = (DataRs != DataRt);
-			Global::Branch_PC = Global::PC + 4 + 4 * (int)ins.C;
+			NumberOverflowDetect(Global::PC+4, Global::PC, 4);
+			NumberOverflowDetect(Global::PC+4+4*(int)ins.C, Global::PC+4 , 4*(int)ins.C);
+			Global::Branch_PC = Global::PC + 4 * (int)ins.C;
 			break;
 		case 7: // bgtz
 			Global::Branch_taken = (DataRs > 0);
-			Global::Branch_PC = Global::PC + 4 + 4 * (int)ins.C;
+			NumberOverflowDetect(Global::PC+4, Global::PC, 4);
+			NumberOverflowDetect(Global::PC+4+4*(int)ins.C, Global::PC+4 , 4*(int)ins.C);
+			Global::Branch_PC = Global::PC + 4 * (int)ins.C;
 			break;
 		case 2: // j
 			ins.C = (unsigned)(ins.Word << 6) >> 6;
@@ -338,6 +362,7 @@ void Instruction_Decode(){
 void Execute(){
 	Instruction ins = Global::ID_EX.ins;
 	int ALU_result = 0, DataRs = 0, DataRt = 0;
+	unsigned int A;
 
 	// Forwarding
 	if(!isBranch(ins)){
@@ -348,24 +373,25 @@ void Execute(){
 		if(ins.fwdrt)
 			DataRt = Global::MEM_WB.ALU_result;
 		else
-			DataRt = Global::ID_EX.RegRs;
-	}
-	else{
-		ins.fwdrs = false;
-		ins.fwdrt = false;
+			DataRt = Global::ID_EX.RegRt;
 	}
 	
+	ins.fwdrs = false;
+	ins.fwdrt = false;
+
 	switch (ins.opcode){
 		case 0:
 			switch (ins.funct){
 				case 32: // add
 					ALU_result = DataRs + DataRt;
+					NumberOverflowDetect(ALU_result, DataRs, DataRt);
 					break;
 				case 33: // addu
 					ALU_result = DataRs + DataRt;
 					break;
 				case 34: // sub
 					ALU_result = DataRs - DataRt;
+					NumberOverflowDetect(ALU_result, DataRs, (~DataRt)+1);
 					break;
 				case 36: // and
 					ALU_result = DataRs & DataRt;
@@ -398,45 +424,57 @@ void Execute(){
 			break;
 		case 8: // addi
 			ALU_result = DataRs + (int) ins.C;
+			NumberOverflowDetect(ALU_result, DataRs, (int) ins.C);
 			break;
 		case 9: // addiu
 			ALU_result = DataRs + (int) ins.C;
 			break;
 		case 35: // lw
 			ALU_result = DataRs + (int) ins.C;
+			NumberOverflowDetect(ALU_result, DataRs, (int) ins.C);
 			break;
 		case 33: // lh
 			ALU_result = DataRs + (int) ins.C;
+			NumberOverflowDetect(ALU_result, DataRs, (int) ins.C);
 			break;
 		case 37: // lhu
 			ALU_result = DataRs + (int) ins.C;
+			NumberOverflowDetect(ALU_result, DataRs, (int) ins.C);
 			break;
 		case 32: // lb
 			ALU_result = DataRs + (int) ins.C;
+			NumberOverflowDetect(ALU_result, DataRs, (int) ins.C);
 			break;
 		case 36: // lbu
 			ALU_result = DataRs + (int) ins.C;
+			NumberOverflowDetect(ALU_result, DataRs, (int) ins.C);
 			break;
 		case 43: // sw
 			ALU_result = DataRs + (int) ins.C;
+			NumberOverflowDetect(ALU_result, DataRs, (int) ins.C);
 			break;
 		case 41: // sh
 			ALU_result = DataRs + (int) ins.C;
+			NumberOverflowDetect(ALU_result, DataRs, (int) ins.C);
 			break;
 		case 40: // sb
 			ALU_result = DataRs + (int) ins.C;
+			NumberOverflowDetect(ALU_result, DataRs, (int) ins.C);
 			break;
 		case 15: // lui
 			ALU_result = (int) ins.C << 16;
 			break;
 		case 12: // andi
-			ALU_result = DataRs & (unsigned int) ins.C;
+			A = (((unsigned int) ins.C << 16) >> 16);
+			ALU_result = DataRs & A;
 			break;
 		case 13: // ori
-			ALU_result = DataRs | (unsigned int) ins.C;
+			A = (((unsigned int) ins.C << 16) >> 16);
+			ALU_result = DataRs | A;
 			break;
 		case 14: // nori
-			ALU_result = ~(DataRs | (unsigned int) ins.C);
+			A = (((unsigned int) ins.C << 16) >> 16);
+			ALU_result = ~(DataRs | A);
 			break;
 		case 10: // slti
 			ALU_result = (DataRs < ins.C);
@@ -458,33 +496,54 @@ void Memory_Access(){
 	int Data = 0;
 	switch(ins.opcode){
 		case 35: // lw
+			AddressOverflowDetect(Global::EX_MEM.ALU_result, 3);
+			DataMisaligned(Global::EX_MEM.ALU_result, 4);
+			if(Global::error_type[1] || Global::error_type[2]) return;
 			for(int i=0; i<4; i++)
 				Data = (Data << 8) | (unsigned char)Global::Memory[Global::EX_MEM.ALU_result + i];
 			break;
 		case 33: // lh
+			AddressOverflowDetect(Global::EX_MEM.ALU_result, 1);
+			DataMisaligned(Global::EX_MEM.ALU_result, 2);
+			if(Global::error_type[1] || Global::error_type[2]) return;
 			Data = Global::Memory[Global::EX_MEM.ALU_result];
 			for(int i=1; i<2; i++)
 				Data = (Data << 8) | (unsigned char)Global::Memory[Global::EX_MEM.ALU_result + i];
 			break;
 		case 37: // lhu
+			AddressOverflowDetect(Global::EX_MEM.ALU_result, 1);
+			DataMisaligned(Global::EX_MEM.ALU_result, 2);
+			if(Global::error_type[1] || Global::error_type[2]) return;
 			for(int i=0; i<2; i++)
 				Data = (Data << 8) | (unsigned char)Global::Memory[Global::EX_MEM.ALU_result + i];
 			break;
 		case 32: // lb
+			AddressOverflowDetect(Global::EX_MEM.ALU_result, 0);
+			if(Global::error_type[1]) return;
 			Data = Global::Memory[Global::EX_MEM.ALU_result];
 			break;
 		case 36: // lbu
+			AddressOverflowDetect(Global::EX_MEM.ALU_result, 0);
+			if(Global::error_type[1]) return;
 			Data = (unsigned char)Global::Memory[Global::EX_MEM.ALU_result];
 			break;
 		case 43: // sw
+			AddressOverflowDetect(Global::EX_MEM.ALU_result, 3);
+			DataMisaligned(Global::EX_MEM.ALU_result, 4);
+			if(Global::error_type[1] || Global::error_type[2]) return;
 			for(int i=0; i<4; i++)
 				Global::Memory[Global::EX_MEM.ALU_result + i] = (char)(Global::EX_MEM.RegRt >> (8*(3-i)));
 			break;
 		case 41: // sh
+			AddressOverflowDetect(Global::EX_MEM.ALU_result, 1);
+			DataMisaligned(Global::EX_MEM.ALU_result, 2);
+			if(Global::error_type[1] || Global::error_type[2]) return;
 			for(int i=0; i<4; i++)
 				Global::Memory[Global::EX_MEM.ALU_result + i] = (char)(Global::EX_MEM.RegRt >> (8*(1-i)));
 			break;
 		case 40: // sb
+			AddressOverflowDetect(Global::EX_MEM.ALU_result, 0);
+			if(Global::error_type[1]) return;
 			Global::Memory[Global::EX_MEM.ALU_result] = (char)Global::EX_MEM.RegRt;
 			break;
 		default: // Store Load else
@@ -502,6 +561,10 @@ void Memory_Access(){
 
 void Write_Back(){
 	Instruction ins = Global::MEM_WB.ins;
+	if((Global::MEM_WB.WriteDes == 0) && (ins.Name!="NOP") && !isBranch(ins)){
+		Global::error_type[0] = true;
+		return;
+	}
 	if(ins.type=='R')
 		Global::reg[Global::MEM_WB.WriteDes] = Global::MEM_WB.ALU_result;
 	else if(ins.type=='I')

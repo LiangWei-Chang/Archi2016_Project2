@@ -39,6 +39,10 @@ public:
 		RegRs = RegRt = Data = ALU_result = WriteDes = 0;
 		RegWrite = MemRead = false;
 	}
+	void Clear(){
+		ALU_result = Data = RegRs = RegRt = WriteDes = 0;
+		RegWrite = MemRead = false;
+	}
 };
 
 class Global{
@@ -50,5 +54,6 @@ public:
 	static bool Branch_taken;
 	static bool error_type[4];
 	static Buffer IF_ID, ID_EX, EX_MEM, MEM_WB;
+	static bool Flush;
 };
 #endif
