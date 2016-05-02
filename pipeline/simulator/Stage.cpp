@@ -172,6 +172,8 @@ void Instruction_Decode(){
 	if(Global::Stall){
 		Instruction NOP;
 		Global::ID_EX.ins = NOP;
+		Global::ID_EX.MemRead = false;
+		Global::ID_EX.RegWrite = false;
 		return;
 	}
 

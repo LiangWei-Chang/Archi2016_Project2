@@ -29,7 +29,8 @@ void Test(){
 	Instruction ins = Global::IF_ID.ins;
 
 	// Stall
-	if(Global::EX_MEM.MemRead && ((Global::EX_MEM.WriteDes == ins.rs) || (Global::EX_MEM.WriteDes == ins.rt)))
+	if((Global::EX_MEM.MemRead && ((Global::EX_MEM.WriteDes == ins.rs) || (Global::EX_MEM.WriteDes == ins.rt))) ||
+		(Global::ID_EX.MemRead && ((Global::ID_EX.WriteDes == ins.rs) || (Global::ID_EX.WriteDes == ins.rt))))
 		Global::Stall = true;
 	else 
 		Global::Stall = false;
