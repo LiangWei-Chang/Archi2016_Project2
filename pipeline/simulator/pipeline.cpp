@@ -28,15 +28,19 @@ bool isBranch2(Instruction ins){
 void NextStageTest(){
 	Instruction ins = Global::IF_ID.ins;
 
+	Global::Stall = false;
+
 	// Stall
 	if((Global::EX_MEM.MemRead && ((Global::EX_MEM.WriteDes == ins.rs) || ((ins.type!='I') && (Global::EX_MEM.WriteDes == ins.rt)))) ||
 		(Global::ID_EX.MemRead && ((Global::ID_EX.WriteDes == ins.rs) || ((ins.type!='I') && (Global::ID_EX.WriteDes == ins.rt)))))
 		Global::Stall = true;
-	else 
-		Global::Stall = false;
 	if(!isBranch2(ins)){
 		if((Global::EX_MEM.RegWrite && (Global::EX_MEM.WriteDes!=0) && (Global::EX_MEM.WriteDes == ins.rs) && (Global::ID_EX.WriteDes != ins.rs)) ||
 			(Global::EX_MEM.RegWrite && (Global::EX_MEM.WriteDes!=0) && (Global::EX_MEM.WriteDes == ins.rt) && (Global::ID_EX.WriteDes != ins.rt) && (ins.type!='I')))
+			Global::Stall = true;
+	}
+	else{
+		if(Global::ID_EX.RegWrite && (Global::ID_EX.WriteDes!=0) && ((Global::ID_EX.WriteDes == ins.rs) || (Global::ID_EX.WriteDes == ins.rt)))
 			Global::Stall = true;
 	}
 
@@ -50,7 +54,7 @@ void NextStageTest(){
 		}
 		else{
 			Global::IF_ID.ins.fwdrs = false;
-			if(Global::MEM_WB.WriteDes == ins.rs){
+			if((Global::MEM_WB.ins.Name!="NOP") && (Global::MEM_WB.WriteDes == ins.rs)){
 				if(Global::MEM_WB.ins.type == 'R')
 					RsData = Global::MEM_WB.ALU_result;
 				else if(Global::MEM_WB.ins.type == 'I')
@@ -59,7 +63,7 @@ void NextStageTest(){
 			else
 				RsData = Global::reg[ins.rs];
 		}
-		if(Global::EX_MEM.RegWrite && (Global::EX_MEM.WriteDes!=0) && ((ins.type!='I') && (Global::EX_MEM.WriteDes == ins.rt))){
+		if(Global::EX_MEM.RegWrite && (Global::EX_MEM.WriteDes!=0) && (Global::EX_MEM.WriteDes == ins.rt)){
 			Global::IF_ID.ins.fwdrt = true;
 			RtData = Global::EX_MEM.ALU_result;
 		}
@@ -76,7 +80,7 @@ void NextStageTest(){
 		}
 		switch(ins.opcode){
 			case 4: // beq
-				NextBranch = (RsData == RtData);
+				NextBranch = (RsData == RtData); 
 				break;
 			case 5: // bne
 				NextBranch = (RsData != RtData);
@@ -153,9 +157,9 @@ void cyclePrint(ofstream &fout, int &Cycle){
 		else if(Global::Stall && i == 0)
 			fout << B.ins.Name << " to_be_stalled" << endl;
 		else if(B.ins.fwdrs)
-			fout << B.ins.Name << " fwd_EX-DM_rs_$" << B.ins.rs << endl;
+			fout << B.ins.Name << " fwd_EX-DM_rs_$" << dec << B.ins.rs << endl;
 		else if(B.ins.fwdrt)
-			fout << B.ins.Name << " fwd_EX-DM_rt_$" << B.ins.rt << endl;
+			fout << B.ins.Name << " fwd_EX-DM_rt_$" << dec << B.ins.rt << endl;
 		else 
 			fout << B.ins.Name << endl;
  	}

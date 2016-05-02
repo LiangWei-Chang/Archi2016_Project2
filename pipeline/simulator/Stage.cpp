@@ -32,6 +32,10 @@ bool isBranch(Instruction ins){
 	return ((ins.Name=="BEQ") || (ins.Name=="BNE") || (ins.Name=="BGTZ") || (ins.Name=="J") || (ins.Name=="JAL") || (ins.Name=="JR"));
 }
 
+bool Excep(string s){
+	return (s=="NOP") || (s=="SW") || (s=="SB") || (s=="SH");
+}
+
 Instruction Decode(int Word){
 	Instruction ins;
 	ins.Word = Word;
@@ -561,7 +565,7 @@ void Memory_Access(){
 
 void Write_Back(){
 	Instruction ins = Global::MEM_WB.ins;
-	if((Global::MEM_WB.WriteDes == 0) && (ins.Name!="NOP") && !isBranch(ins)){
+	if((Global::MEM_WB.WriteDes == 0) && !Excep(ins.Name) && !isBranch(ins)){
 		Global::error_type[0] = true;
 		return;
 	}
