@@ -34,13 +34,10 @@ void NextStageTest(){
 		Global::Stall = true;
 	else 
 		Global::Stall = false;
-
 	if(!isBranch2(ins)){
 		if((Global::EX_MEM.RegWrite && (Global::EX_MEM.WriteDes!=0) && (Global::EX_MEM.WriteDes == ins.rs) && (Global::ID_EX.WriteDes != ins.rs)) ||
 			(Global::EX_MEM.RegWrite && (Global::EX_MEM.WriteDes!=0) && (Global::EX_MEM.WriteDes == ins.rt) && (Global::ID_EX.WriteDes != ins.rt) && (ins.type!='I')))
 			Global::Stall = true;
-		else
-			Global::Stall = false;
 	}
 
 	int RsData, RtData;
@@ -53,7 +50,14 @@ void NextStageTest(){
 		}
 		else{
 			Global::IF_ID.ins.fwdrs = false;
-			RsData = Global::reg[ins.rs];
+			if(Global::MEM_WB.WriteDes == ins.rs){
+				if(Global::MEM_WB.ins.type == 'R')
+					RsData = Global::MEM_WB.ALU_result;
+				else if(Global::MEM_WB.ins.type == 'I')
+					RsData = Global::MEM_WB.Data;
+			}
+			else
+				RsData = Global::reg[ins.rs];
 		}
 		if(Global::EX_MEM.RegWrite && (Global::EX_MEM.WriteDes!=0) && ((ins.type!='I') && (Global::EX_MEM.WriteDes == ins.rt))){
 			Global::IF_ID.ins.fwdrt = true;
@@ -61,7 +65,14 @@ void NextStageTest(){
 		}
 		else{
 			Global::IF_ID.ins.fwdrt = false;
-			RtData = Global::reg[ins.rt];
+			if(Global::MEM_WB.WriteDes == ins.rt){
+				if(Global::MEM_WB.ins.type == 'R')
+					RtData = Global::MEM_WB.ALU_result;
+				else if(Global::MEM_WB.ins.type == 'I')
+					RtData = Global::MEM_WB.Data;
+			}
+			else
+				RtData = Global::reg[ins.rt];
 		}
 		switch(ins.opcode){
 			case 4: // beq
