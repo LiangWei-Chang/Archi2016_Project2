@@ -54,7 +54,7 @@ void NextStageTest(){
 		}
 		else{
 			Global::IF_ID.ins.fwdrs = false;
-			if((Global::MEM_WB.ins.Name!="NOP") && (Global::MEM_WB.WriteDes == ins.rs)){
+			if(Global::MEM_WB.RegWrite && (Global::MEM_WB.ins.Name!="NOP") && (Global::MEM_WB.WriteDes == ins.rs)){
 				if(Global::MEM_WB.ins.type == 'R')
 					RsData = Global::MEM_WB.ALU_result;
 				else if(Global::MEM_WB.ins.type == 'I')
@@ -69,7 +69,7 @@ void NextStageTest(){
 		}
 		else{
 			Global::IF_ID.ins.fwdrt = false;
-			if(Global::MEM_WB.WriteDes == ins.rt){
+			if(Global::MEM_WB.RegWrite && Global::MEM_WB.WriteDes == ins.rt){
 				if(Global::MEM_WB.ins.type == 'R')
 					RtData = Global::MEM_WB.ALU_result;
 				else if(Global::MEM_WB.ins.type == 'I')
@@ -94,6 +94,8 @@ void NextStageTest(){
 			case 3: // jal
 				NextBranch = true;
 				break;
+			case 0: // jg
+				NextBranch = true;
 		}
 		Global::Flush = (NextBranch) ? true : false;
 	}
@@ -156,8 +158,12 @@ void cyclePrint(ofstream &fout, int &Cycle){
 			fout << "NOP" << endl;
 		else if(Global::Stall && i == 0)
 			fout << B.ins.Name << " to_be_stalled" << endl;
-		else if(B.ins.fwdrs)
-			fout << B.ins.Name << " fwd_EX-DM_rs_$" << dec << B.ins.rs << endl;
+		else if(B.ins.fwdrs){
+			fout << B.ins.Name << " fwd_EX-DM_rs_$" << dec << B.ins.rs;
+			if(B.ins.fwdrt)
+				fout << " fwd_EX-DM_rt_$" << dec << B.ins.rt;
+			fout << endl;
+		}
 		else if(B.ins.fwdrt)
 			fout << B.ins.Name << " fwd_EX-DM_rt_$" << dec << B.ins.rt << endl;
 		else 

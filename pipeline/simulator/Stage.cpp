@@ -175,9 +175,13 @@ Instruction Decode(int Word){
 			ins.Name = "J";
 			break;
 		case 3: // jal
+			ins.type = 'J';
 			ins.Name = "JAL";
 			break;
 	}
+	if(ins.Name=="SLL")
+		if(ins.rt==0 && ins.rd==0 && ins.shamt==0)
+			ins.Name = "NOP";
 	return ins;
 }
 
@@ -265,7 +269,7 @@ void Instruction_Decode(){
 					break;
 				case 8: // jr
 					Global::Branch_taken = true;
-					Global::Branch_PC = Global::reg[ins.rs];
+					Global::Branch_PC = DataRs;
 					break;
 			}
 			break;
@@ -350,10 +354,12 @@ void Instruction_Decode(){
 			Global::Branch_PC = K;
 			break;
 		case 3: // jal
-			Global::reg[31] = Global::PC + 4;
+			Global::ID_EX.WriteDes = 31;
+			Global::ID_EX.ALU_result = Global::PC;
 			ins.C = (unsigned)(ins.Word << 6) >> 6;
 			K = ((Global::PC+4) >> 28) << 28;
 			K += (ins.C << 2);
+			Global::ID_EX.RegWrite = true;
 			Global::Branch_taken = true;
 			Global::Branch_PC = K;
 			break;
@@ -483,6 +489,9 @@ void Execute(){
 		case 10: // slti
 			ALU_result = (DataRs < ins.C);
 			break;
+		case 3: //jal
+			ALU_result = Global::ID_EX.ALU_result;
+			break;
 		case 63: // Halt
 			Global::Halt = true;
 			break;
@@ -565,12 +574,14 @@ void Memory_Access(){
 
 void Write_Back(){
 	Instruction ins = Global::MEM_WB.ins;
-	if((Global::MEM_WB.WriteDes == 0) && !Excep(ins.Name) && !isBranch(ins)){
-		Global::error_type[0] = true;
-		return;
+	if(Global::MEM_WB.RegWrite){
+		if((Global::MEM_WB.WriteDes == 0) && !Excep(ins.Name) && !isBranch(ins)){
+			Global::error_type[0] = true;
+			return;
+		}
+		if(ins.type=='R' || ins.type=='J')
+			Global::reg[Global::MEM_WB.WriteDes] = Global::MEM_WB.ALU_result;
+		else if(ins.type=='I')
+			Global::reg[Global::MEM_WB.WriteDes] = Global::MEM_WB.Data;
 	}
-	if(ins.type=='R')
-		Global::reg[Global::MEM_WB.WriteDes] = Global::MEM_WB.ALU_result;
-	else if(ins.type=='I')
-		Global::reg[Global::MEM_WB.WriteDes] = Global::MEM_WB.Data;
 }
