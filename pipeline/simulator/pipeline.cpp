@@ -21,6 +21,10 @@ string Error_Message[4] = {": Write $0 Error", ": Address Overflow", ": Misalign
 string fiveStage[5] = {"IF: ", "ID: ", "EX: ", "DM: ", "WB: "};
 Instruction fiveStageIns[5];
 
+bool isLoad(string s){
+	return (s=="LW" || s=="LH" || s=="LHU" || s=="LB" || s=="LBU");
+}
+
 bool isBranch2(Instruction ins){
 	return ((ins.Name=="BEQ") || (ins.Name=="BNE") || (ins.Name=="BGTZ") || (ins.Name=="J") || (ins.Name=="JAL") || (ins.Name=="JR"));
 }
@@ -31,24 +35,74 @@ void NextStageTest(){
 	Global::Stall = false;
 
 	// Stall
-	if((Global::EX_MEM.MemRead && ((Global::EX_MEM.WriteDes == ins.rs) || ((ins.type!='I') && (Global::EX_MEM.WriteDes == ins.rt)))) ||
-		(Global::ID_EX.MemRead && ((Global::ID_EX.WriteDes == ins.rs) || ((ins.type!='I') && (Global::ID_EX.WriteDes == ins.rt)))))
-		Global::Stall = true;
 	if(!isBranch2(ins)){
-		if((Global::EX_MEM.RegWrite && (Global::EX_MEM.WriteDes!=0) && (Global::EX_MEM.WriteDes == ins.rs) && (Global::ID_EX.WriteDes != ins.rs)) ||
-			(Global::EX_MEM.RegWrite && (Global::EX_MEM.WriteDes!=0) && (Global::EX_MEM.WriteDes == ins.rt) && (Global::ID_EX.WriteDes != ins.rt) && (ins.type!='I')))
-			Global::Stall = true;
+		if(Global::EX_MEM.MemRead && Global::EX_MEM.WriteDes!=0 && ((Global::EX_MEM.WriteDes == ins.rs) || (Global::EX_MEM.WriteDes == ins.rt))){
+			if(Global::EX_MEM.WriteDes == ins.rs){
+				if(!(Global::ID_EX.RegWrite && Global::ID_EX.WriteDes!=0 && Global::ID_EX.WriteDes==ins.rs))
+					Global::Stall = true;
+			}
+			else if(Global::EX_MEM.WriteDes==ins.rt){
+				if(!(Global::ID_EX.RegWrite && Global::ID_EX.WriteDes!=0 && Global::ID_EX.WriteDes==ins.rt)){
+					if(ins.type=='I'){
+						if(ins.Name=="SW" || ins.Name=="SH" || ins.Name=="SB")
+							Global::Stall = true;
+					}
+					else
+						Global::Stall = true;
+				}
+			}
+		}
+		if(Global::ID_EX.MemRead && Global::ID_EX.WriteDes!=0 && ((Global::ID_EX.WriteDes == ins.rs) || (Global::ID_EX.WriteDes == ins.rt))){
+			if(Global::ID_EX.WriteDes == ins.rs){
+				Global::Stall = true;
+			}
+			else if(Global::ID_EX.WriteDes == ins.rt){
+				if(ins.type=='I'){
+					if(ins.Name=="SW" || ins.Name=="SH" || ins.Name=="SB")
+						Global::Stall = true;
+				}
+				else
+					Global::Stall = true;
+			}
+		}
+		if(!Global::EX_MEM.MemRead && Global::EX_MEM.RegWrite && Global::EX_MEM.WriteDes!=0 && Global::EX_MEM.WriteDes==ins.rs){
+			if(Global::ID_EX.RegWrite){
+				if(Global::ID_EX.WriteDes!=ins.rs)
+					Global::Stall = true;
+			}
+			else
+				Global::Stall = true;
+		}
+		if(!Global::EX_MEM.MemRead && Global::EX_MEM.RegWrite && Global::EX_MEM.WriteDes!=0 && Global::EX_MEM.WriteDes==ins.rt && !isLoad(ins.Name)){
+			if(Global::ID_EX.RegWrite){
+				if(Global::ID_EX.WriteDes!=ins.rt){
+					if(ins.type!='I')
+						Global::Stall = true;
+					else{
+						if(ins.Name=="SW" || ins.Name=="SH" || ins.Name=="SB")
+							Global::Stall = true;
+					}
+				}
+			}
+			else
+				Global::Stall = true;
+		}
 	}
 	else{
 		if(Global::ID_EX.RegWrite && (Global::ID_EX.WriteDes!=0) && ((Global::ID_EX.WriteDes == ins.rs) || (Global::ID_EX.WriteDes == ins.rt)))
 			Global::Stall = true;
+		else if(Global::EX_MEM.MemRead && (Global::EX_MEM.WriteDes!=0) && ((Global::EX_MEM.WriteDes == ins.rs) || (Global::EX_MEM.WriteDes == ins.rt)))
+			Global::Stall = true;
 	}
 
 	int RsData, RtData;
+	Global::IF_ID.ins.fwdrs = false;
+	Global::IF_ID.ins.fwdrt = false;
 	// Forwarding in ID
 	if(isBranch2(ins)){
 		bool NextBranch = false;
-		if(Global::EX_MEM.RegWrite && (Global::EX_MEM.WriteDes!=0) && (Global::EX_MEM.WriteDes == ins.rs)){
+		// Forward rs
+		if(!Global::EX_MEM.MemRead && Global::EX_MEM.RegWrite && (Global::EX_MEM.WriteDes!=0) && (Global::EX_MEM.WriteDes == ins.rs)){
 			Global::IF_ID.ins.fwdrs = true;
 			RsData = Global::EX_MEM.ALU_result;
 		}
@@ -63,7 +117,8 @@ void NextStageTest(){
 			else
 				RsData = Global::reg[ins.rs];
 		}
-		if(Global::EX_MEM.RegWrite && (Global::EX_MEM.WriteDes!=0) && (Global::EX_MEM.WriteDes == ins.rt)){
+		// Forward rt
+		if(!Global::EX_MEM.MemRead && Global::EX_MEM.RegWrite && (Global::EX_MEM.WriteDes!=0) && (Global::EX_MEM.WriteDes == ins.rt)){
 			Global::IF_ID.ins.fwdrt = true;
 			RtData = Global::EX_MEM.ALU_result;
 		}
@@ -104,15 +159,30 @@ void NextStageTest(){
 		Global::IF_ID.ins.fwdrt = false;
 	}
 
+	Global::ID_EX.ins.fwdrs = false;
+	Global::ID_EX.ins.fwdrt = false;
 	// Forwarding in EXE
 	ins = Global::ID_EX.ins;
 	if(!isBranch2(ins)){
-		if(Global::EX_MEM.RegWrite && (Global::EX_MEM.WriteDes!=0) && (Global::EX_MEM.WriteDes == ins.rs))
-			Global::ID_EX.ins.fwdrs = true;
-		else
+		if(!Global::EX_MEM.MemRead && Global::EX_MEM.RegWrite && (Global::EX_MEM.WriteDes!=0) && (Global::EX_MEM.WriteDes == ins.rs)){
+			if(ins.Name!="SLL" && ins.Name!="SRL" && ins.Name!="SRA" && ins.Name!="LUI")
+				Global::ID_EX.ins.fwdrs = true;
+		}
+		else{
 			Global::ID_EX.ins.fwdrs = false;
-		if(Global::EX_MEM.RegWrite && (Global::EX_MEM.WriteDes!=0) && ((ins.type!='I') && (Global::EX_MEM.WriteDes == ins.rt)))
-			Global::ID_EX.ins.fwdrt = true;
+		}
+		if(!Global::EX_MEM.MemRead && Global::EX_MEM.RegWrite && (Global::EX_MEM.WriteDes!=0)){		
+			if(ins.type=='I'){
+				if(ins.Name=="SW" || ins.Name=="SB" || ins.Name=="SH"){
+					if(Global::EX_MEM.WriteDes == ins.rt)
+						Global::ID_EX.ins.fwdrt = true;
+				}
+			}
+			else{
+				if(Global::EX_MEM.WriteDes == ins.rt)
+					Global::ID_EX.ins.fwdrt = true;
+			}
+		}
 		else
 			Global::ID_EX.ins.fwdrt = false;
 	}
@@ -122,9 +192,11 @@ void NextStageTest(){
 	}
 }
 
-void InitialReg(){
+void Initialize(){
 	for(int i=0; i<32; i++)
 		Global::reg[i] = 0;
+	for(int i=0; i<1024; i++)
+		Global::Address[i] = 0;
 }
 
 void cyclePrint(ofstream &fout, int &Cycle){
@@ -174,10 +246,10 @@ void cyclePrint(ofstream &fout, int &Cycle){
 
 int main(){
 	char ch;
-	int Word = 0, bytes = 4, Cycle = 0, idx = -2;
+	int Word = 0, Cycle = 0;
 
 	// Initialize register;
-	InitialReg();
+	Initialize();
 
 	ofstream fout("snapshot.rpt", ios::out);
 	ofstream Errorout("error_dump.rpt", ios::out);
@@ -188,25 +260,27 @@ int main(){
 		cout << "Error to load 'iimage.bin'!\n";
 		return 0;
 	}
-	while(!fin.eof()){
+	// Read PC
+	for(int i=0; i<4; i++){
 		fin.get(ch);
 		Word = (Word << 8) | (unsigned char)ch;
-		bytes--;
-		if(bytes==0){
-			bytes = 4;
-			if(idx==-2){
-				Global::PC = Word;
-				idx++;
-				continue;
-			}
-			else if(idx==-1){
-				idx++;
-				continue;
-			}
-			Global::Address[Global::PC+idx*4] = Word;
-			idx++;
-		}
 	}
+	Global::PC = Word;
+	// Read numbers of words
+	for(int i=0; i<4; i++){
+		fin.get(ch);
+		Word = (Word << 8) | (unsigned char)ch;
+	}
+	int Num = Word;
+	// Read Instructions
+	for(int i=0; i<Num; i++){
+		for(int j=0; j<4; j++){
+			fin.get(ch);
+			Word = (Word << 8) | (unsigned char)ch;
+		}
+		Global::Address[Global::PC+i*4] = Word;
+	}
+
 	fin.close();
 
 	// Read dimage.bin

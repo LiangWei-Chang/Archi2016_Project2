@@ -52,7 +52,7 @@ Instruction Decode(int Word){
 	// Calculate funct
 	ins.funct = ((unsigned int) (ins.Word << 26)) >> 26;
 	// Calculate C
-	ins.C = (short) ins.Word;
+	ins.C = (ins.Word << 16) >> 16;
 
 	switch(ins.opcode){
 		case 0:
@@ -291,6 +291,7 @@ void Instruction_Decode(){
 			Global::ID_EX.MemRead = true;
 			Global::ID_EX.WriteDes = ins.rt;
 			break;
+		case 37: // lhu
 			Global::ID_EX.RegWrite = true;
 			Global::ID_EX.MemRead = true;
 			Global::ID_EX.WriteDes = ins.rt;
@@ -551,7 +552,7 @@ void Memory_Access(){
 			AddressOverflowDetect(Global::EX_MEM.ALU_result, 1);
 			DataMisaligned(Global::EX_MEM.ALU_result, 2);
 			if(Global::error_type[1] || Global::error_type[2]) return;
-			for(int i=0; i<4; i++)
+			for(int i=0; i<2; i++)
 				Global::Memory[Global::EX_MEM.ALU_result + i] = (char)(Global::EX_MEM.RegRt >> (8*(1-i)));
 			break;
 		case 40: // sb

@@ -40,8 +40,13 @@ public:
 		RegWrite = MemRead = false;
 	}
 	void Clear(){
-		ALU_result = Data = RegRs = RegRt = WriteDes = 0;
-		RegWrite = MemRead = false;
+		ALU_result = 0;
+		Data = 0;
+		RegRs = 0;
+		RegRt = 0;
+		WriteDes = 0;
+		RegWrite = false;
+		MemRead = false;
 	}
 };
 
