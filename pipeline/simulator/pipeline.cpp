@@ -21,6 +21,14 @@ string Error_Message[4] = {": Write $0 Error", ": Address Overflow", ": Misalign
 string fiveStage[5] = {"IF: ", "ID: ", "EX: ", "DM: ", "WB: "};
 Instruction fiveStageIns[5];
 
+bool noRS(string s){
+	return (s=="SLL" || s=="SRL" || s=="SRA" || s=="LUI");
+}
+
+bool isJ(string s){
+	return (s=="JR" || s=="BGTZ" || s=="J" || s=="JAL");
+}
+
 bool isLoad(string s){
 	return (s=="LW" || s=="LH" || s=="LHU" || s=="LB" || s=="LBU");
 }
@@ -33,71 +41,12 @@ void NextStageTest(){
 	Instruction ins = Global::IF_ID.ins;
 
 	Global::Stall = false;
-
-	// Stall
-	if(!isBranch2(ins)){
-		if(Global::EX_MEM.MemRead && Global::EX_MEM.WriteDes!=0 && ((Global::EX_MEM.WriteDes == ins.rs) || (Global::EX_MEM.WriteDes == ins.rt))){
-			if(Global::EX_MEM.WriteDes == ins.rs){
-				if(!(Global::ID_EX.RegWrite && Global::ID_EX.WriteDes!=0 && Global::ID_EX.WriteDes==ins.rs))
-					Global::Stall = true;
-			}
-			else if(Global::EX_MEM.WriteDes==ins.rt){
-				if(!(Global::ID_EX.RegWrite && Global::ID_EX.WriteDes!=0 && Global::ID_EX.WriteDes==ins.rt)){
-					if(ins.type=='I'){
-						if(ins.Name=="SW" || ins.Name=="SH" || ins.Name=="SB")
-							Global::Stall = true;
-					}
-					else
-						Global::Stall = true;
-				}
-			}
-		}
-		if(Global::ID_EX.MemRead && Global::ID_EX.WriteDes!=0 && ((Global::ID_EX.WriteDes == ins.rs) || (Global::ID_EX.WriteDes == ins.rt))){
-			if(Global::ID_EX.WriteDes == ins.rs){
-				Global::Stall = true;
-			}
-			else if(Global::ID_EX.WriteDes == ins.rt){
-				if(ins.type=='I'){
-					if(ins.Name=="SW" || ins.Name=="SH" || ins.Name=="SB")
-						Global::Stall = true;
-				}
-				else
-					Global::Stall = true;
-			}
-		}
-		if(!Global::EX_MEM.MemRead && Global::EX_MEM.RegWrite && Global::EX_MEM.WriteDes!=0 && Global::EX_MEM.WriteDes==ins.rs){
-			if(Global::ID_EX.RegWrite){
-				if(Global::ID_EX.WriteDes!=ins.rs)
-					Global::Stall = true;
-			}
-			else
-				Global::Stall = true;
-		}
-		if(!Global::EX_MEM.MemRead && Global::EX_MEM.RegWrite && Global::EX_MEM.WriteDes!=0 && Global::EX_MEM.WriteDes==ins.rt && !isLoad(ins.Name)){
-			if(Global::ID_EX.RegWrite){
-				if(Global::ID_EX.WriteDes!=ins.rt){
-					if(ins.type!='I')
-						Global::Stall = true;
-					else{
-						if(ins.Name=="SW" || ins.Name=="SH" || ins.Name=="SB")
-							Global::Stall = true;
-					}
-				}
-			}
-			else
-				Global::Stall = true;
-		}
-	}
-	else{
-		if(Global::ID_EX.RegWrite && (Global::ID_EX.WriteDes!=0) && ((Global::ID_EX.WriteDes == ins.rs) || (Global::ID_EX.WriteDes == ins.rt)))
-			Global::Stall = true;
-		else if(Global::EX_MEM.MemRead && (Global::EX_MEM.WriteDes!=0) && ((Global::EX_MEM.WriteDes == ins.rs) || (Global::EX_MEM.WriteDes == ins.rt)))
-			Global::Stall = true;
-	}
-
-	int RsData, RtData;
 	Global::IF_ID.ins.fwdrs = false;
 	Global::IF_ID.ins.fwdrt = false;
+	Global::ID_EX.ins.fwdrs = false;
+	Global::ID_EX.ins.fwdrt = false;
+	int RsData, RtData;
+
 	// Forwarding in ID
 	if(isBranch2(ins)){
 		bool NextBranch = false;
@@ -108,7 +57,7 @@ void NextStageTest(){
 		}
 		else{
 			Global::IF_ID.ins.fwdrs = false;
-			if(Global::MEM_WB.RegWrite && (Global::MEM_WB.ins.Name!="NOP") && (Global::MEM_WB.WriteDes == ins.rs)){
+			if(Global::MEM_WB.RegWrite && (Global::MEM_WB.ins.Name!="NOP") && (Global::MEM_WB.WriteDes == ins.rs) && Global::MEM_WB.WriteDes!=0){
 				if(Global::MEM_WB.ins.type == 'R')
 					RsData = Global::MEM_WB.ALU_result;
 				else if(Global::MEM_WB.ins.type == 'I')
@@ -119,12 +68,14 @@ void NextStageTest(){
 		}
 		// Forward rt
 		if(!Global::EX_MEM.MemRead && Global::EX_MEM.RegWrite && (Global::EX_MEM.WriteDes!=0) && (Global::EX_MEM.WriteDes == ins.rt)){
-			Global::IF_ID.ins.fwdrt = true;
-			RtData = Global::EX_MEM.ALU_result;
+			if(!isJ(ins.Name)){
+				Global::IF_ID.ins.fwdrt = true;
+				RtData = Global::EX_MEM.ALU_result;
+			}
 		}
 		else{
 			Global::IF_ID.ins.fwdrt = false;
-			if(Global::MEM_WB.RegWrite && Global::MEM_WB.WriteDes == ins.rt){
+			if(Global::MEM_WB.RegWrite && Global::MEM_WB.WriteDes == ins.rt && Global::MEM_WB.WriteDes!=0){
 				if(Global::MEM_WB.ins.type == 'R')
 					RtData = Global::MEM_WB.ALU_result;
 				else if(Global::MEM_WB.ins.type == 'I')
@@ -159,8 +110,6 @@ void NextStageTest(){
 		Global::IF_ID.ins.fwdrt = false;
 	}
 
-	Global::ID_EX.ins.fwdrs = false;
-	Global::ID_EX.ins.fwdrt = false;
 	// Forwarding in EXE
 	ins = Global::ID_EX.ins;
 	if(!isBranch2(ins)){
@@ -189,6 +138,77 @@ void NextStageTest(){
 	else{
 		Global::ID_EX.ins.fwdrs = false;
 		Global::ID_EX.ins.fwdrt = false;
+	}
+
+	ins = Global::IF_ID.ins;
+	// Stall
+	if(ins.Name=="NOP" || ins.Name=="HALT") return;
+	if(!isBranch2(ins)){
+		if(Global::EX_MEM.MemRead && Global::EX_MEM.WriteDes!=0 && ((Global::EX_MEM.WriteDes == ins.rs) || (Global::EX_MEM.WriteDes == ins.rt))){
+			if(Global::EX_MEM.WriteDes == ins.rs){
+				if(!(Global::ID_EX.RegWrite && Global::ID_EX.WriteDes!=0 && Global::ID_EX.WriteDes==ins.rs))
+					Global::Stall = true;
+			}
+			else if(Global::EX_MEM.WriteDes==ins.rt){
+				if(!(Global::ID_EX.RegWrite && Global::ID_EX.WriteDes!=0 && Global::ID_EX.WriteDes==ins.rt)){
+					if(ins.type=='I'){
+						if(ins.Name=="SW" || ins.Name=="SH" || ins.Name=="SB")
+							Global::Stall = true;
+					}
+					else
+						Global::Stall = true;
+				}
+			}
+		}
+		if(Global::ID_EX.MemRead && Global::ID_EX.WriteDes!=0 && ((Global::ID_EX.WriteDes == ins.rs) || (Global::ID_EX.WriteDes == ins.rt))){
+			if(Global::ID_EX.WriteDes == ins.rs){
+				Global::Stall = true;
+			}
+			else if(Global::ID_EX.WriteDes == ins.rt){
+				if(ins.type=='I'){
+					if(ins.Name=="SW" || ins.Name=="SH" || ins.Name=="SB")
+						Global::Stall = true;
+				}
+				else if(ins.type!='I')
+					Global::Stall = true;
+			}
+		}
+		if(!Global::EX_MEM.MemRead && Global::EX_MEM.RegWrite && Global::EX_MEM.WriteDes!=0 && Global::EX_MEM.WriteDes==ins.rs && !noRS(ins.Name)){
+			if(Global::ID_EX.RegWrite){
+				if(Global::ID_EX.WriteDes!=ins.rs)
+					Global::Stall = true;
+			}
+			else
+				Global::Stall = true;
+		}
+		if(!Global::EX_MEM.MemRead && Global::EX_MEM.RegWrite && Global::EX_MEM.WriteDes!=0 && Global::EX_MEM.WriteDes==ins.rt && !isLoad(ins.Name)){
+			if(Global::ID_EX.RegWrite){
+				if(Global::ID_EX.WriteDes!=ins.rt){
+					if(ins.type!='I')
+						Global::Stall = true;
+					else{
+						if(ins.Name=="SW" || ins.Name=="SH" || ins.Name=="SB")
+							Global::Stall = true;
+					}
+				}
+			}
+			else if(ins.type!='I' || ins.Name=="SW" || ins.Name=="SH" || ins.Name=="SB")
+				Global::Stall = true;
+		}
+	}
+	else{
+		if(Global::ID_EX.RegWrite && (Global::ID_EX.WriteDes!=0) && ((Global::ID_EX.WriteDes == ins.rs) || (Global::ID_EX.WriteDes == ins.rt))){
+			if(Global::ID_EX.WriteDes == ins.rs){
+				if(ins.Name!="J" && ins.Name!="JAL")
+					Global::Stall = true;
+			}
+			if(Global::ID_EX.WriteDes == ins.rt){
+				if(!isJ(ins.Name))
+					Global::Stall = true;
+			}
+		}
+		else if(Global::EX_MEM.MemRead && (Global::EX_MEM.WriteDes!=0) && ((Global::EX_MEM.WriteDes == ins.rs) || (Global::EX_MEM.WriteDes == ins.rt)))
+			Global::Stall = true;
 	}
 }
 
